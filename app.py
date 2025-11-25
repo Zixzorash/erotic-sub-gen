@@ -28,7 +28,7 @@ def seconds_to_timestamp(seconds, fmt="srt"):
     if fmt == "vtt":
         return f"{hours:02}:{minutes:02}:{seconds:02}.{millis:03}"
     elif fmt == "ass":
-        return f"{hours}:{minutes:02}:{seconds:02}.{millis:02}" # ASS ใช้ทศนิยม 2 ตำแหน่ง
+        return f"{hours}:{minutes:02}:{seconds:02}.{millis:02}" 
     else: # srt
         return f"{hours:02}:{minutes:02}:{seconds:02},{millis:03}"
 
@@ -79,14 +79,17 @@ st.sidebar.title("⚙️ Configuration")
 
 api_key = st.sidebar.text_input("Gemini API Key", type="password", placeholder="Paste your AIza... key here")
 
+# อัปเดตรายชื่อ Model ตามที่ขอมา
 model_name = st.sidebar.selectbox(
     "Model Selection",
     [
-        "gemini-1.5-pro-latest", 
-        "gemini-1.5-flash-latest", 
-        "gemini-exp-1121", 
-        "gemini-1.5-pro",
-        "gemini-3-pro" # Placeholder as requested
+        "gemini-3-pro",          # Priority 1
+        "gemini-2.5-pro",        # Priority 2
+        "gemini-2.5-flash",      # Priority 3
+        "gemini-2.0-flash",      # Priority 4
+        "gemini-exp-1121",       # Experimental
+        "gemini-1.5-pro",        # Stable
+        "gemini-1.5-flash"       # Fast
     ],
     index=0
 )
@@ -101,11 +104,11 @@ safety_settings = [
 
 # --- Main Interface ---
 st.title("🔥 Auto Erotic Subtitles Generator")
-st.markdown("ถอดเสียงและสร้างซับไตเติลแนวเร่าร้อนด้วย Gemini AI")
+st.markdown(f"Using Model: **{model_name}** | ถอดเสียงและสร้างซับไตเติลแนวเร่าร้อน")
 
 # Upload Section
 uploaded_file = st.file_uploader(
-    "Upload Media File (Max 500MB recommended)", 
+    "Upload Media File (Max 200MB for Free Tier)", 
     type=['mp4', 'mp3', 'm4a', 'wav', 'aac', 'flac']
 )
 
@@ -116,8 +119,8 @@ with col1:
 with col2:
     tgt_lang = st.selectbox("ภาษาซับไตเติล (Subtitle Language)", ["Thai", "English", "Japanese", "Chinese", "Korean"])
 
-# Custom Keywords (Hidden from UI code primarily, but user can edit here)
-default_keywords = "ใช้คำแสลง, คำหยาบ, คำแสดงอารมณ์ทางเพศ, เสียงคราง (Ahh~, Ohh~), แปลให้ได้อารมณ์เงี่ยน"
+# Custom Keywords
+default_keywords = "ใช้คำแสลง, คำหยาบ, คำแสดงอารมณ์ทางเพศ, เสียงคราง (Ahh~, Ohh~), แปลให้ได้อารมณ์เงี่ยน, หี, ควย, เย็ด, แตก"
 user_context = st.text_area("Context / Style / Keywords (Optional)", value=default_keywords, help="ใส่คำค้นหาหรือสไตล์ที่ต้องการเน้นเพิ่มเติมที่นี่")
 
 # Generate Button
@@ -129,7 +132,7 @@ if st.button("🚀 Start Generating Subtitles") and uploaded_file and api_key:
     
     try:
         # 1. Upload to Gemini File API
-        status_text.text("1/4 Uploading file to Gemini Server...")
+        status_text.text(f"1/4 Uploading file to Gemini Server...")
         progress_bar.progress(10)
         
         # Save temp file
@@ -139,7 +142,7 @@ if st.button("🚀 Start Generating Subtitles") and uploaded_file and api_key:
         # Upload
         myfile = genai.upload_file("temp_media_file", mime_type=uploaded_file.type)
         
-        # Wait for processing (Video only, but good practice for all)
+        # Wait for processing
         while myfile.state.name == "PROCESSING":
             time.sleep(2)
             myfile = genai.get_file(myfile.name)
@@ -148,7 +151,6 @@ if st.button("🚀 Start Generating Subtitles") and uploaded_file and api_key:
         progress_bar.progress(40)
 
         # 2. Prepare Prompt
-        # Prompt นี้ถูกออกแบบมาให้คืนค่าเป็น JSON เพื่อความแม่นยำของ Timecode
         system_prompt = f"""
         You are an expert subtitle translator specialized in erotic, lively, and adult content.
         
@@ -157,7 +159,7 @@ if st.button("🚀 Start Generating Subtitles") and uploaded_file and api_key:
         
         Style Guidelines:
         - Strict Rule: Use erotic, slang, dirty words, and highly expressive language suitable for adult films.
-        - Include sounds: Transcribe moans, breathing, and reaction sounds (e.g., Ahh~, Ohh fuck~, Hmm~).
+        - Include sounds: Transcribe moans, breathing, and reaction sounds (e.g., Ahh~, Ohh fuck~, Hmm~, Kimochi~).
         - Keywords to emphasize: {user_context}
         - The translation must be accurate to the timestamp but localized to be extremely arousing.
         
@@ -168,23 +170,22 @@ if st.button("🚀 Start Generating Subtitles") and uploaded_file and api_key:
         """
 
         # 3. Call Model
-        model = genai.GenerativeModel(model_name=model_name, safety_settings=safety_settings)
-        
-        response = model.generate_content(
-            [myfile, system_prompt],
-            generation_config={"response_mime_type": "application/json"}
-        )
-        
-        status_text.text("3/4 Processing response...")
-        progress_bar.progress(80)
-
-        # 4. Parse & Download
+        # ใส่ Error handling เผื่อโมเดลใหม่ยังไม่รองรับใน region
         try:
+            model = genai.GenerativeModel(model_name=model_name, safety_settings=safety_settings)
+            
+            response = model.generate_content(
+                [myfile, system_prompt],
+                generation_config={"response_mime_type": "application/json"}
+            )
+            
+            status_text.text("3/4 Processing response...")
+            progress_bar.progress(80)
+
+            # 4. Parse & Download
             subtitles_data = json.loads(response.text)
             
-            # Create tabs for formats
             tab1, tab2, tab3, tab4 = st.tabs(["SRT", "VTT", "TXT", "ASS"])
-            
             formats = {"SRT": "srt", "VTT": "vtt", "TXT": "txt", "ASS": "ass"}
             
             for tab, (fmt_name, ext) in zip([tab1, tab2, tab3, tab4], formats.items()):
@@ -200,14 +201,11 @@ if st.button("🚀 Start Generating Subtitles") and uploaded_file and api_key:
             
             status_text.text("✅ Completed!")
             progress_bar.progress(100)
+
+        except Exception as e:
+             st.error(f"Model Error ({model_name}): {e}")
+             st.warning("If the model name is invalid, try switching to 'gemini-1.5-pro' or 'gemini-exp-1121'.")
             
-        except json.JSONDecodeError:
-            st.error("Error: The model returned a format that couldn't be parsed as JSON. Try again or adjust the prompt.")
-            st.code(response.text) # Debug output
-            
-        # Cleanup (Optional: Delete file from Gemini Cloud to save storage)
-        # genai.delete_file(myfile.name)
-        
     except Exception as e:
         st.error(f"An error occurred: {e}")
 
