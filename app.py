@@ -79,22 +79,22 @@ st.sidebar.title("⚙️ Configuration")
 
 api_key = st.sidebar.text_input("Gemini API Key", type="password", placeholder="Paste your AIza... key here")
 
-# อัปเดตรายชื่อ Model ตามที่ขอมา
+# อัปเดตรายชื่อ Model ตามที่ขอมา (3 Pro Preview, 2.5, etc.)
 model_name = st.sidebar.selectbox(
     "Model Selection",
     [
-        "gemini-3-pro",          # Priority 1
-        "gemini-2.5-pro",        # Priority 2
-        "gemini-2.5-flash",      # Priority 3
-        "gemini-2.0-flash",      # Priority 4
-        "gemini-exp-1121",       # Experimental
-        "gemini-1.5-pro",        # Stable
-        "gemini-1.5-flash"       # Fast
+        "gemini-3-pro-preview",  # New Request
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-2.0-flash",
+        "gemini-exp-1121",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash"
     ],
     index=0
 )
 
-# Safety Settings: สำคัญมากสำหรับการถอดเสียงแนว Erotic ต้องปิดการ Block
+# Safety Settings: BLOCK_NONE เพื่อให้รองรับเนื้อหา Erotic
 safety_settings = [
     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
     {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
@@ -104,7 +104,7 @@ safety_settings = [
 
 # --- Main Interface ---
 st.title("🔥 Auto Erotic Subtitles Generator")
-st.markdown(f"Using Model: **{model_name}** | ถอดเสียงและสร้างซับไตเติลแนวเร่าร้อน")
+st.markdown(f"Using Model: **{model_name}**")
 
 # Upload Section
 uploaded_file = st.file_uploader(
@@ -119,9 +119,26 @@ with col1:
 with col2:
     tgt_lang = st.selectbox("ภาษาซับไตเติล (Subtitle Language)", ["Thai", "English", "Japanese", "Chinese", "Korean"])
 
-# Custom Keywords
-default_keywords = "ใช้คำแสลง, คำหยาบ, คำแสดงอารมณ์ทางเพศ, เสียงคราง (Ahh~, Ohh~), แปลให้ได้อารมณ์เงี่ยน, หี, ควย, เย็ด, แตก"
-user_context = st.text_area("Context / Style / Keywords (Optional)", value=default_keywords, help="ใส่คำค้นหาหรือสไตล์ที่ต้องการเน้นเพิ่มเติมที่นี่")
+# --- Custom Keywords & Instructions (Fixed Default) ---
+# รวมคำสั่งและ Keywords ทั้งหมดไว้ที่นี่ เพื่อให้เป็นค่าเริ่มต้นเสมอ
+fixed_default_instructions = """
+[ ข้อกำหนด ] :
+- ถอดเสียงเป็นคำบรรยายบทสนทนาแนวอีโรติกเร่าร้อน มีชีวิตชีวา ใช้คำทะลึ่ง แสลง เข้าถึงอารมณ์และคำเซ็กส์ตรงๆ
+- ใส่เสียงครางต่างๆ ใส่ให้สมจริง (เช่น Ahh~, Ohh fuck~, งื้ออออ~ อ๊าาา~ ฯลฯ)
+- เรียบเรียงบทสนทนาถูกต้อง
+- อนุญาตให้ใช้คำทะลึ่ง คำแสรง อนุญาตให้ใช้คำที่เกี่ยวกับการมีเซ็กส์ อนุญาตเสียงร้อง เสียงคราง เข้าถึงอารมณ์ขณะมีเซ็กส์
+- ห้ามใช้คำบรรยายแทนเสียงในวงเล็บ เช่น (เสียงคราง) หรือ (moan) แต่ให้เขียนเสียงนั้นออกมาเลย เช่น อ๊าาา~, ซี๊ดดด~
+
+[ Keywords to Emphasize ] :
+หี, ควย, เงี่ยน, น้ำเงี่ยน, เสียวหี, เสียว, น้ำแตก, โม๊ก, โม๊กควย, เลียหี, เย็ด, เม็ดแตด, แตด, ตูด, ควยแข็ง, เย็ดหี, น้ำหีแตก, น้ำควยเยิ้ม, ควยยัดหี, น้ำหีเยิ้ม, หีกระแทกควย
+"""
+
+user_context = st.text_area(
+    "Context / Style / Keywords", 
+    value=fixed_default_instructions.strip(), 
+    height=300,
+    help="สามารถแก้ไขเพิ่มเติมได้ แต่ค่าเริ่มต้นจะถูกตั้งไว้ตามที่คุณกำหนด"
+)
 
 # Generate Button
 if st.button("🚀 Start Generating Subtitles") and uploaded_file and api_key:
@@ -151,26 +168,27 @@ if st.button("🚀 Start Generating Subtitles") and uploaded_file and api_key:
         progress_bar.progress(40)
 
         # 2. Prepare Prompt
+        # Prompt ถูกปรับให้เน้นย้ำเรื่องการไม่ใช้วงเล็บ และการใช้คำตามที่กำหนด
         system_prompt = f"""
         You are an expert subtitle translator specialized in erotic, lively, and adult content.
         
         Task: Transcribe and translate the audio from the file into {tgt_lang}.
         Source Language: {src_lang}.
         
-        Style Guidelines:
-        - Strict Rule: Use erotic, slang, dirty words, and highly expressive language suitable for adult films.
-        - Include sounds: Transcribe moans, breathing, and reaction sounds (e.g., Ahh~, Ohh fuck~, Hmm~, Kimochi~).
-        - Keywords to emphasize: {user_context}
-        - The translation must be accurate to the timestamp but localized to be extremely arousing.
+        STRICT Style Guidelines:
+        1. **Erotic & Lively:** Use slang, dirty words, and direct sexual terms. Make it sound hot and realistic.
+        2. **Real Sounds ONLY:** Do NOT use parenthetical descriptions like (moan), (heavy breathing). Instead, transcribe the actual sound: "Ahh~", "Ohh fuck~", "Mmm~", "Ooh~".
+        3. **Keywords:** You MUST use these terms where appropriate: หี, ควย, เงี่ยน, น้ำเงี่ยน, เสียว, น้ำแตก, เย็ด, แตด (and others provided in context).
+        4. **User Instructions:** Follow these specific requirements:
+        {user_context}
         
         Output Format:
         Return a strict JSON list of objects. No markdown formatting.
-        Format: [ {{"start": 12.5, "end": 15.2, "text": "Ohh~ Yes... deeper..."}}, ... ]
+        Format: [ {{"start": 12.5, "end": 15.2, "text": "Ohh~ Yes... deeper... ahh~"}}, ... ]
         Timestamp 'start' and 'end' must be in seconds (float).
         """
 
         # 3. Call Model
-        # ใส่ Error handling เผื่อโมเดลใหม่ยังไม่รองรับใน region
         try:
             model = genai.GenerativeModel(model_name=model_name, safety_settings=safety_settings)
             
@@ -204,11 +222,11 @@ if st.button("🚀 Start Generating Subtitles") and uploaded_file and api_key:
 
         except Exception as e:
              st.error(f"Model Error ({model_name}): {e}")
-             st.warning("If the model name is invalid, try switching to 'gemini-1.5-pro' or 'gemini-exp-1121'.")
+             st.warning("If 'gemini-3-pro-preview' fails, check if your API Key has access to this preview model, or try 'gemini-1.5-pro'.")
             
     except Exception as e:
         st.error(f"An error occurred: {e}")
 
 # Footer
 st.markdown("---")
-st.caption("Note: Large files (>200MB) may take time to upload depending on your internet connection.")
+st.caption("Note: Large files (>200MB) may take time to upload.")
